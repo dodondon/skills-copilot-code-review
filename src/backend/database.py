@@ -2,11 +2,15 @@
 MongoDB database configuration and setup for Mergington High School API
 """
 
+import logging
+import os
 from pymongo import MongoClient
+from pymongo.errors import ServerSelectionTimeoutError
 from argon2 import PasswordHasher, exceptions as argon2_exceptions
 
 # Connect to MongoDB
-client = MongoClient('mongodb://localhost:27017/')
+mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
+client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
 db = client['mergington_high']
 activities_collection = db['activities']
 teachers_collection = db['teachers']
@@ -36,19 +40,30 @@ def verify_password(hashed_password: str, plain_password: str) -> bool:
         return False
 
 
-def init_database():
-    """Initialize database if empty"""
+def init_database() -> bool:
+    """Initialize database if empty.
 
-    # Initialize activities if empty
-    if activities_collection.count_documents({}) == 0:
-        for name, details in initial_activities.items():
-            activities_collection.insert_one({"_id": name, **details})
+    Returns True when initialization succeeds, False when MongoDB is unavailable.
+    """
 
-    # Initialize teacher accounts if empty
-    if teachers_collection.count_documents({}) == 0:
-        for teacher in initial_teachers:
-            teachers_collection.insert_one(
-                {"_id": teacher["username"], **teacher})
+    try:
+        # Initialize activities if empty
+        if activities_collection.count_documents({}) == 0:
+            for name, details in initial_activities.items():
+                activities_collection.insert_one({"_id": name, **details})
+
+        # Initialize teacher accounts if empty
+        if teachers_collection.count_documents({}) == 0:
+            for teacher in initial_teachers:
+                teachers_collection.insert_one(
+                    {"_id": teacher["username"], **teacher})
+    except ServerSelectionTimeoutError:
+        logging.warning(
+            "MongoDB is not reachable. Skipping database initialization."
+        )
+        return False
+
+    return True
 
 
 # Initial database if empty

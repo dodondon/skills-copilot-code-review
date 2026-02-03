@@ -6,6 +6,7 @@ for extracurricular activities at Mergington High School.
 """
 
 from fastapi import FastAPI
+import logging
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
@@ -19,7 +20,14 @@ app = FastAPI(
 )
 
 # Initialize database with sample data if empty
-database.init_database()
+@app.on_event("startup")
+def init_db_on_startup():
+    initialized = database.init_database()
+    if not initialized:
+        logging.warning(
+            "App started without MongoDB; database-backed endpoints for activities "
+            "(viewing and signing up) and authentication may be unavailable or limited."
+        )
 
 # Mount the static files directory for serving the frontend
 current_dir = Path(__file__).parent
